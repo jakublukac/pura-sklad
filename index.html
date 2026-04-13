@@ -201,15 +201,9 @@ async function api(action, params, body) {
   if (!state.apiUrl) throw new Error('API URL nie je nastavená');
   let url = state.apiUrl + '?action=' + action;
   if (params) Object.keys(params).forEach(k => url += '&' + k + '=' + encodeURIComponent(params[k]));
+  if (body) url += '&data=' + encodeURIComponent(JSON.stringify(body));
   
-  const opts = {};
-  if (body) {
-    opts.method = 'POST';
-    opts.headers = { 'Content-Type': 'text/plain' };
-    opts.body = JSON.stringify(body);
-  }
-  
-  const res = await fetch(url, opts);
+  const res = await fetch(url, { redirect: 'follow' });
   const data = await res.json();
   if (data.error) throw new Error(data.error);
   return data;
