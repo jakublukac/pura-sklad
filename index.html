@@ -197,16 +197,37 @@ function $(sel) { return document.querySelector(sel); }
 function $$(sel) { return document.querySelectorAll(sel); }
 
 // ─── API ───
-async function api(action, params, body) {
-  if (!state.apiUrl) throw new Error('API URL nie je nastavená');
-  let url = state.apiUrl + '?action=' + action;
-  if (params) Object.keys(params).forEach(k => url += '&' + k + '=' + encodeURIComponent(params[k]));
-  if (body) url += '&data=' + encodeURIComponent(JSON.stringify(body));
-  
-  const res = await fetch(url, { redirect: 'follow' });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data;
+function api(action, params, body) {
+  return new Promise(function(resolve, reject) {
+    if (!state.apiUrl) return reject(new Error('API URL nie je nastavená'));
+    var callbackName = '_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    var url = state.apiUrl + '?action=' + action + '&callback=' + callbackName;
+    if (params) Object.keys(params).forEach(function(k) { url += '&' + k + '=' + encodeURIComponent(params[k]); });
+    if (body) url += '&data=' + encodeURIComponent(JSON.stringify(body));
+    
+    var timeout = setTimeout(function() {
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      reject(new Error('Časový limit vypršal'));
+    }, 30000);
+    
+    window[callbackName] = function(data) {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      if (data && data.error) reject(new Error(data.error));
+      else resolve(data);
+    };
+    
+    var script = document.createElement('script');
+    script.src = url;
+    script.onerror = function() {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      reject(new Error('Nepodarilo sa pripojiť k serveru'));
+    };
+    document.body.appendChild(script);
+  });
 }
 
 async function loadData() {
